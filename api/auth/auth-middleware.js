@@ -1,4 +1,5 @@
-const User = require('../users/users-model')
+const UserModel = require('../users/users-model')
+
 /*
   If the user does not have a session saved in the server
 
@@ -8,33 +9,43 @@ const User = require('../users/users-model')
   }
 */
 function restricted(req, res, next) {
-  if(req.session.user){
-    next()
-  } else {
-    next({status: 401, message: 'You shall not pass!'})
-  }
+//     response:
+//   status 200
+//   [
+//     {
+//       "user_id": 1,
+//       "username": "bob"
+//     },
+//     // etc
+//   ]
+
+//   response on non-authenticated:
+//   status 401
+//   {
+//     "message": "You shall not pass!"
+//   }
+if (!req.session.user) {
+  res.status(401).json({message: 'You shall not pass!'})
+} else {
+  next()
+}
 }
 
 /*
-  If the userna next()me in req.body already exists in the database
+  If the username in req.body already exists in the database
 
   status 422
   {
     "message": "Username taken"
   }
 */
-async function checkUsernameFree(req, res, next){
-  try{
-    const users = await User.findBy({username: req.body.username})
-    if(!users.length){
-      next()
-    } else {
-      next({
-        message: "Username taken", status: 422
-      })
-    }
-  } catch(err){
-    next(err)
+async function checkUsernameFree(req, res, next) {
+  const { username } = req.body
+  const [answer] = await UserModel.findBy({username: username})
+  if (answer) {
+    res.status(422).json({message: 'Username taken'})
+  } else {
+    next()
   }
 }
 
@@ -47,16 +58,17 @@ async function checkUsernameFree(req, res, next){
   }
 */
 async function checkUsernameExists(req, res, next) {
-  try{
-    const users = await User.findBy({username: req.body.username})
-    if(users.length){
-      req.user = users[0]
-      next()
-    } else {
-      next({message: "Invalid credentials", status: 401})
-    }
-  } catch(err){
-    next(err)
+  const {username} = req.body
+  const find = {
+    username: username
+  }
+  const [answer] = await UserModel.findBy(find)
+  
+  if (answer) {
+    req.user = answer
+    next()
+  } else {
+    res.status(401).json({message: 'invalid credentials'})
   }
 }
 
@@ -69,17 +81,19 @@ async function checkUsernameExists(req, res, next) {
   }
 */
 function checkPasswordLength(req, res, next) {
-  if(!req.body.password || req.body.password.length < 3){
-    next({message: "Password must be longer than 3 chars", status: 422})
+  const { password } = req.body
+  if (!password || password.length <= 3) {
+    res.status(422).json({message: 'Password must be longer than 3 chars'})
   } else {
     next()
   }
 }
 
 // Don't forget to add these to the `exports` object so they can be required in other modules
+
 module.exports = {
-  restricted,
-  checkUsernameFree,
+  checkPasswordLength,
   checkUsernameExists,
-  checkPasswordLength
+  checkUsernameFree,
+  restricted
 }
